@@ -31,7 +31,7 @@ void CaptureScreen::widgetInit()
     this->setMouseTracking(true);
     //设置属性 Qt::WindowStaysOnTopHint;
     this->setWindowFlags(Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
-    setWindowState(Qt::WindowActive | Qt::WindowFullScreen);
+    this->setWindowState(Qt::WindowActive | Qt::WindowFullScreen);
     this->setMouseTracking(true);
 
     m_stretchRectState = NotSelect;
@@ -58,7 +58,7 @@ void CaptureScreen::loadBackgroundPixmap()
 
 void CaptureScreen::mousePressEvent(QMouseEvent *event)
 {
-    qDebug()<<"mousePressEvent...";
+    //qDebug()<<"mousePressEvent...";
     m_stretchRectState = getStrethRectState(event->pos());
     if (event->button() == Qt::LeftButton)
     {
@@ -80,6 +80,20 @@ void CaptureScreen::mousePressEvent(QMouseEvent *event)
         {
             m_currentCaptureState = BeginMoveCaptureArea;
             m_beginMovePoint = event->pos();
+        }else{
+            m_stretchRectState = NotSelect;
+            m_topLeftRect = QRect(0 , 0 , 0 , 0);
+            m_topRightRect = QRect(0, 0, 0, 0);
+            m_bottomLeftRect = QRect(0, 0, 0, 0);
+            m_bottomRightRect = QRect(0, 0, 0, 0);
+            m_leftCenterRect = QRect(0, 0, 0, 0);
+            m_topCenterRect = QRect(0, 0, 0, 0);
+            m_rightCenterRect = QRect(0, 0, 0, 0);
+            m_bottomCenterRect = QRect(0, 0, 0, 0);
+            this->update();
+            // widgetInit();
+            // m_currentCaptureState = BeginCaptureImage;
+            // m_beginPoint = event->pos();
         }
     }
     return QWidget::mousePressEvent(event);

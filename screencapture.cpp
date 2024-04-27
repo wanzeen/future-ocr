@@ -8,11 +8,30 @@ ScreenCapture::ScreenCapture(QWidget *parent):QWidget(parent) {
 }
 
 void ScreenCapture::initScreenPixmap(){
-    QScreen *screen = QGuiApplication::primaryScreen();
-    // 截取整个屏幕的像素
-    windowPixmap = screen->grabWindow(0);
+
+    // 获取屏幕列表
+    // QList<QScreen*> screens = QGuiApplication::screens();
+    // 获取当前鼠标所在屏幕
+    QScreen* currentScreen = QGuiApplication::screenAt(QCursor::pos());
+    this->setGeometry(currentScreen->geometry());
+    qDebug()<<"currentScreen->geometry():"<<currentScreen->geometry().bottomRight().x();
+    windowPixmap = currentScreen->grabWindow(0);
+    // QList<QScreen*> screens =QGuiApplication::screens();
     currentOperate = OperateState::Init;
+    // 获取图片宽度和高度
+    int width = windowPixmap.width();
+    int height = windowPixmap.height();
+    // 计算中心点坐标
+    QPoint centerPoint(width / 2, height / 2);
+    startPoint = centerPoint;
+    endPoint = centerPoint;
+
 }
+
+void ScreenCapture::setCapturePreference(bool isAutoOcr){
+    this->isAutoOcr = isAutoOcr;
+}
+
 
 void ScreenCapture::mousePressEvent(QMouseEvent *event) {
     //qDebug()<<"press:"<<event->type()<<",btn:"<<event->button();
@@ -68,7 +87,15 @@ void ScreenCapture::mouseReleaseEvent(QMouseEvent *event){
         return;
     }
     currentOperate = OperateState::Finish;
-    this->update();
+
+    if(isAutoOcr){
+        QRect rect(startPoint, endPoint);
+        QPixmap capturedPixmap = windowPixmap.copy(rect);
+        emit signalCaptureFinished(capturedPixmap);
+       this->close();
+    }else{
+        this->update();
+    }
 }
 
 
@@ -105,9 +132,11 @@ void ScreenCapture::mouseDoubleClickEvent(QMouseEvent *event) {
 
 void ScreenCapture::paintEvent(QPaintEvent *event)
 {
-    //QRect eventRect = event->rect();
-    //qDebug()<<"eventRect w="<<eventRect.bottomLeft()<<", h:"<<this->height();
-    //qDebug()<<"painting w="<<this->width()<<", h:"<<this->height();
+    QWidget::paintEvent(event);
+    QRect eventRect = event->rect();
+    qDebug()<<"cursor="<<this->cursor().pos();
+    qDebug()<<"painting w="<<this->width()<<", h:"<<this->height();
+
     //开始绘制，以当前窗口作为绘制设备
     painter.begin(this);
     //设置阴影
@@ -128,22 +157,25 @@ void ScreenCapture::paintEvent(QPaintEvent *event)
 
     // 合并两个坐标为一个矩形选框
     QRect rect(startPoint, endPoint);
-    //获取选中的图片区域
-    QPixmap capturedPixmap = windowPixmap.copy(rect);
-    //绘制选中的图片
-    painter.drawPixmap(rect.topLeft(), capturedPixmap);
+    //qDebug()<<"rect: w="<<rect.width()<<", h:"<<rect.width();
     //设置画笔
     //painter.setPen(QPen(Qt::red, 2));
     painter.setPen(QPen(QColor(0, 180, 255), 2));
-    //给选中的图片画上蓝色边框
-    painter.drawRect(rect);
+    //获取选中的图片区域，不是一个点的时候开始截图
+    if(rect.width()>1 && rect.height()>1){
+        QPixmap capturedPixmap = windowPixmap.copy(rect);
+        //绘制选中的图片
+        painter.drawPixmap(rect.topLeft(), capturedPixmap);
+        //给选中的图片画上蓝色边框
+        painter.drawRect(rect);
+    }
     if(currentOperate==OperateState::Init){
-        painter.drawText(event->rect(), Qt::AlignCenter, "提示：按下【鼠标左键】并拖动开始截图.");
+        painter.drawText(event->rect(), Qt::AlignCenter, "按住【鼠标左键】并拖动开始截图");
     }else if(currentOperate==OperateState::Finish){
-        painter.drawText(rect, Qt::AlignCenter, "提示：按下【Enter键】或【鼠标左键双击】识别选区文字.");
+        painter.drawText(rect, Qt::AlignCenter, "按下【Enter键】或【鼠标左键双击】识别选区文字");
         lastRect = rect;
     }else if(currentOperate==OperateState::ClickNoDrag){
-        painter.drawText(event->rect(), Qt::AlignCenter, "提示：未选中截图.");
+        painter.drawText(event->rect(), Qt::AlignCenter, "未选中截图，请按住【鼠标左键】并拖动开始截图");
     }
     painter.end();
 

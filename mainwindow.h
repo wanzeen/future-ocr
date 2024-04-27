@@ -36,6 +36,7 @@
 #include "customgraphicsview.h"
 #include <QQueue>
 #include <QAtomicInt>
+#include <QToolBar>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -44,6 +45,13 @@ QT_END_NAMESPACE
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
+
+    struct PreferenceInfo{
+        int captureAutoOcr = 0;
+        int pasteImageAutoOcr = 0;
+        int copyTextAfterAutoMiniWindow = 0;
+    };
+
 public slots:
     // 完成文本识别
     void onRunnableFinished(QString content);
@@ -51,6 +59,10 @@ public slots:
     void receiveScreenCapture(QPixmap catureImage);
     void receiveCaptureCancel();
     void receiveGraphicsViewSelected(QPixmap selectedPixmap);
+    void receiveGlobalSignalKeyEvent(int eventType);
+    void receivePreferenceCheckBoxChanged(int state);
+    void receiveGraphicsPixmapItemAdded();
+
 public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
@@ -63,12 +75,12 @@ public:
     void onSaveButtonClicked();
     // 复制图片
     void onCopyImageClicked();
-    // 识别图片
+    // 截屏操作
     void onCaptureButtonClicked();
     //键盘事件监听
     void keyPressEvent(QKeyEvent *event);
     // 提交OCR处理
-    void submitOcrTextHandler();
+    void onPixmapOcrClicked();
     void wheelEvent(QWheelEvent *event) override;
     // 添加OCR文本处理
     void addOrcTextTask(QPixmap pixmap);
@@ -80,29 +92,74 @@ public:
     void handleTextChanged();
     //复制已选文本
     void onCopyTextClicked();
+    // 设置选项
+    void onPreferenceClicked();
+    // 关于
     void onAboutClicked();
-    void onPasteImageOcrClicked();
-
+    // 粘贴图片
+    void onPasteImageClicked();
+    // 保存偏好设置
+    bool savePreferenceSetting();
+    // 工具栏初始化
+    void initMenuTool();
+    // 图片显示区初始化
+    void initImageView();
+    // 文本显示区初始化
+    void initTextView();
+    // 全局键盘事件
+    void initGlobalKeyEvent();
+    void loadPreferenceInfo();
+    QString getConfigPath();
+    QPixmap &adjustPixmap(QPixmap &pixmap);
+protected:
+    QSize getSize();
+    void setPixmap(QPixmap &pixmap);
 private:
+    PreferenceInfo preferenceInfo;
+    PreferenceInfo tempPreferenceInfo;
+    QToolBar *toolBar;
+    // 菜单栏
+    // 截屏OCR(Ctr+P)
+    QAction *captureAction;
+    // 粘贴图片
+    QAction *pasteImageAction;
+    // 识别(Ctr+Enter)
+    QAction *ocrAction;
+    // 保存(Ctr+S)
+    QAction *saveAction;
+    // 打开(Ctr+O)
+    QAction *openAction;
+    // 复制图片(Ctr+Shift+C)
+    QAction *copyImageAction;
+    // 偏好设置
+    QAction *preferenceAction;
+    // 关于
+    QAction *aboutAction;
+
+    // 复制文本
+    QPushButton *copyTextBtn;
+    // 粘贴并识别图片
+    QPushButton *captureBtn;
+
     // 创建一个QAtomicInt对象
     int taskCount = 0;
-    ScreenCapture *captureScreen = nullptr;
-    QPushButton *copyTextBtn;
+    ScreenCapture *captureScreen;
     QPixmap windowPixmap;
     QPainter painter;
     QLabel *noteLabel;
     qreal angle = 0.0;
     qreal scale = 1.0;
     // 创建一个线程池
-    QThreadPool* threadPool = new QThreadPool;
-
-    QQueue<OcrTextTask*> tasks;
+    QThreadPool* threadPool;
     //场景
     QGraphicsScene *scene;
+    //文本显示区
     QPlainTextEdit *edit;
+    // 图片显示区
     CustomGraphicsView *view ;
-    QTimer *timer;
+    // 全局布局
     QVBoxLayout *centralLayout;
+    // 截屏
     ScreenCapture *screen;
     Ui::MainWindow *ui;
 

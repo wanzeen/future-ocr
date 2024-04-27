@@ -39,6 +39,7 @@ signals:
 public:
     ScreenCapture(QWidget *parent=nullptr);
     void initScreenPixmap();
+    void setCapturePreference(bool isAutoOcr);
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
@@ -55,6 +56,7 @@ private:
     QPoint endPoint;
     QRect lastRect;
     bool isDoubleClick = false;
+    bool isAutoOcr = false;
     // QGraphicsScene *scene ;
 };
 

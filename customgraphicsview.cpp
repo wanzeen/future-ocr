@@ -1,7 +1,13 @@
 #include "customgraphicsview.h"
 #include <QGraphicsPixmapItem>
+#include <QFileInfo>
+#include <QMouseEvent>
+#include <QMimeData>
+
 CustomGraphicsView::CustomGraphicsView(QWidget *parent):QGraphicsView(parent) {
+    this->setAcceptDrops(true);
 }
+
 void CustomGraphicsView::resetMouseState(){
     this->currentMouseState = MouseState::Init;
 }
@@ -24,6 +30,7 @@ void CustomGraphicsView::mouseMoveEvent(QMouseEvent* event){
     }
 }
 void CustomGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
+    // qDebug()<<"mouseRelease...";
     //不是鼠标左键
     if(event->button() != Qt::LeftButton){
         return;
@@ -60,11 +67,20 @@ void CustomGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
 void CustomGraphicsView::paintEvent(QPaintEvent *event){
     QGraphicsView::paintEvent(event);
     //开始绘制，以当前窗口作为绘制设备
+    QPainter painter(this->viewport());
+    if(this->scene()->items().isEmpty()){
+        //qDebug()<<"is empty";
+        //painter.setPen(QPen(QColor(0, 180, 255,128), 2));
+        // 创建一个QPen对象并设置颜色为浅黑色
+         QPen pen(Qt::darkGray);
+        painter.setPen(pen);
+        painter.drawText(event->rect(), Qt::AlignCenter, "拖放图片到此或【Ctr+V】粘贴图片");
+    }
     //qDebug()<<"painting w="<<this->width()<<", h:"<<this->height();
     if(currentMouseState==MouseState::Init || currentMouseState == MouseState::Refresh || this->scene()->items().isEmpty()){
         return;
     }
-    QPainter painter(this->viewport());
+
     QRect selectedRect(startPoint, endPoint);
     //qDebug()<<"selected area  w:"<<selectedRect.width()<<", h:"<<selectedRect.height();
     if(selectedRect.height()<=1 || selectedRect.width()<= 1){
@@ -86,4 +102,60 @@ void CustomGraphicsView::paintEvent(QPaintEvent *event){
 
 }
 
+void CustomGraphicsView::dragEnterEvent(QDragEnterEvent *event) {
+    //qDebug()<<"dragEnterEvent...";
+    if (event->mimeData()->hasUrls()) {
+            // 接受拖放操作
+            event->acceptProposedAction();
+            //event->accept();
+    }else{
+        event->ignore();
+    }
+
+}
+void CustomGraphicsView::dragMoveEvent(QDragMoveEvent *event) {
+    event->accept();
+}
+
+// 用于指定在拖放释放时的行为
+void CustomGraphicsView::dropEvent(QDropEvent *event) {
+    // qDebug()<<"dropEvent.";
+    if (event->mimeData()->hasUrls()) {
+        QList<QUrl> urlList = event->mimeData()->urls();
+        QString imagePath = urlList.first().toLocalFile();
+        //qDebug()<<"imagePath:"<<imagePath;
+        QFileInfo fileInfo(imagePath);
+        QString fileExtension = fileInfo.suffix().toLower();
+        if (fileExtension == "jpg" || fileExtension == "jpeg" || fileExtension == "png" || fileExtension == "gif") {
+            // 是图片文件
+            // 加载并展示图片
+            QPixmap pixmap(imagePath);
+
+            if (!pixmap.isNull()) {
+                if(!this->scene()->items().isEmpty()){
+                    this->scene()->removeItem(this->scene()->items().first());
+                    this->resetMouseState();
+                }
+                QGraphicsPixmapItem *item = new QGraphicsPixmapItem(pixmap);
+                this->setProperty("fileName",fileInfo.fileName());
+                this->scene()->addItem(item);
+                emit signalGraphicsPixmapItemAdded();
+            }
+        }
+        // event->acceptProposedAction();
+    }
+}
+
+void CustomGraphicsView::resizeEvent(QResizeEvent *event){
+    //窗口大小变化事件
+    // Q_UNUSED(event);
+    // qDebug()<<"窗口大小变化..";
+    // if(this->scene()->items().count()!=0){
+    //     QGraphicsPixmapItem* item = dynamic_cast<QGraphicsPixmapItem*>(this->scene()->items().value(0));
+    //     //图片适应窗口，会导致图片无法继续放大
+    //     this->fitInView(item,Qt::KeepAspectRatio);
+    // }
+    QGraphicsView::resizeEvent(event);
+
+}
 

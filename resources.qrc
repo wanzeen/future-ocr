@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/FutureOCR.ico</file>
+    </qresource>
+</RCC>

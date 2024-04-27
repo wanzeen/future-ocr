@@ -3,10 +3,7 @@
 #include "capturescreen.h"
 #include <QProcessEnvironment>
 #include <QMessageBox>
-void test(){
-    ScreenCapture *screen = new ScreenCapture;    
-    screen->show();
-}
+#include<QDebug>
 
 int main(int argc, char *argv[])
 {    
@@ -17,9 +14,12 @@ int main(int argc, char *argv[])
    // qputenv("TESSDATA_PREFIX",tessdataPath);
    // qDebug()<<"tessdataPath:"<<tessdataPath;
     // 打印当前环境变量，用于验证
-    qDebug() << "TESSDATA_PREFIX:" << QProcessEnvironment::systemEnvironment().value("TESSDATA_PREFIX");
+    //qDebug() << "TESSDATA_PREFIX:" << QProcessEnvironment::systemEnvironment().value("TESSDATA_PREFIX");
+   // PrtScListener pp;
    MainWindow window;
-    window.show();
-
+   QIcon icon(":/icons/FutureOCR.ico");
+   // 设置应用程序窗口的图标
+   app.setWindowIcon(icon);
+   window.show();
    return app.exec();
 }

@@ -8,24 +8,31 @@ CONFIG += c++17
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
+LIBS += -lUser32
+
 # QT += concurrent
 SOURCES += \
-    capturescreen.cpp \
+    # capturescreen.cpp \
     customgraphicsview.cpp \
     # customgraphicsview_copy.cpp \
+    globalsignals.cpp \
     main.cpp \
     mainwindow.cpp \
     ocrtexttask.cpp \
-    screencapture.cpp
+    screencapture.cpp \
+    winhookwidget.cpp
+
 
 HEADERS += \
     basicdemo.h \
-    capturescreen.h \
+    # capturescreen.h \
     customgraphicsview.h \
     # customgraphicsview_copy.h \
+    globalsignals.h \
     mainwindow.h \
     ocrtexttask.h \
-    screencapture.h
+    screencapture.h \
+    winhookwidget.h
 
 TRANSLATIONS += \
     FutureOCR_zh_CN.ts
@@ -43,4 +50,9 @@ LIBS += -LD:/User/vcpkg/packages/tesseract_x64-windows/lib/ -ltesseract53
 
 INCLUDEPATH += D:/User/vcpkg/packages/leptonica_x64-windows/include
 LIBS += -LD:/User/vcpkg/packages/leptonica_x64-windows/lib/ -lleptonica-1.84.1
+
+LIBS += -LD:/User/vcpkg/packages/tesseract_x64-windows/tools/tesseract
+
+RESOURCES += \
+    resources.qrc
 

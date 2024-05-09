@@ -4,24 +4,17 @@
 #include <QRunnable>
 #include <tesseract/baseapi.h>
 #include <leptonica/allheaders.h>
-#include <QPixmap>
 #include <QDebug>
-#include <QObject>
-#include <QPlainTextEdit>
 
-class OcrTextTask: public QObject, public QRunnable
+class OcrTextTask:public QRunnable
 {
 
-    Q_OBJECT
 public:
-    OcrTextTask(QPixmap pixmap);
+    OcrTextTask(Pix* pix);
     void run() override;
-    QString readImageText(QPixmap &pixmap);
+    bool readImageText(Pix *pix,QString &result);
 private:
-    QPixmap pix;
-    int serialNo;
-signals:
-    void finished(QString content);
+    Pix *pix;
 };
 
 #endif // OCRTEXTTASK_H

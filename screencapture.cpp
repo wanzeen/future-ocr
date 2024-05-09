@@ -8,13 +8,12 @@ ScreenCapture::ScreenCapture(QWidget *parent):QWidget(parent) {
 }
 
 void ScreenCapture::initScreenPixmap(){
-
     // 获取屏幕列表
     // QList<QScreen*> screens = QGuiApplication::screens();
     // 获取当前鼠标所在屏幕
     QScreen* currentScreen = QGuiApplication::screenAt(QCursor::pos());
     this->setGeometry(currentScreen->geometry());
-    qDebug()<<"currentScreen->geometry():"<<currentScreen->geometry().bottomRight().x();
+    // qDebug()<<"currentScreen->geometry():"<<currentScreen->geometry().bottomRight().x();
     windowPixmap = currentScreen->grabWindow(0);
     // QList<QScreen*> screens =QGuiApplication::screens();
     currentOperate = OperateState::Init;
@@ -71,6 +70,7 @@ void ScreenCapture::mouseMoveEvent(QMouseEvent* event){
         this->setCursor(Qt::ArrowCursor);
         currentOperate = OperateState::Drag;
         endPoint = event->pos();
+        // qDebug()<<"end pos:"<<endPoint;
         update();
     }
 }
@@ -87,6 +87,8 @@ void ScreenCapture::mouseReleaseEvent(QMouseEvent *event){
         return;
     }
     currentOperate = OperateState::Finish;
+    endPoint = event->pos();
+    // qDebug()<<"release end pos:"<<endPoint;
 
     if(isAutoOcr){
         QRect rect(startPoint, endPoint);
@@ -104,8 +106,9 @@ void ScreenCapture::keyPressEvent(QKeyEvent *event)
     //Eeter键完成截图
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
     {
-        //qDebug()<<"prss enter...";
+        // qDebug()<<"prss enter...";
         QPixmap capturedPixmap = windowPixmap.copy(lastRect);
+        qDebug()<<"发送截屏大小："<<capturedPixmap.size();
         emit signalCaptureFinished(capturedPixmap);
         this->close();
     }
@@ -114,6 +117,7 @@ void ScreenCapture::keyPressEvent(QKeyEvent *event)
     {
         emit signalCaptureCancel();
         this->close();
+        qDebug()<<"已取消截屏.";
     }
 }
 
@@ -124,6 +128,7 @@ void ScreenCapture::mouseDoubleClickEvent(QMouseEvent *event) {
         QPixmap capturedPixmap = windowPixmap.copy(lastRect);
         emit signalCaptureFinished(capturedPixmap);
         this->close();
+        qDebug()<<"双击鼠标发送的截屏大小："<<capturedPixmap.size();
     }else{
         isDoubleClick = false;
     }
@@ -133,9 +138,9 @@ void ScreenCapture::mouseDoubleClickEvent(QMouseEvent *event) {
 void ScreenCapture::paintEvent(QPaintEvent *event)
 {
     QWidget::paintEvent(event);
-    QRect eventRect = event->rect();
-    qDebug()<<"cursor="<<this->cursor().pos();
-    qDebug()<<"painting w="<<this->width()<<", h:"<<this->height();
+    // QRect eventRect = event->rect();
+    // qDebug()<<"cursor="<<this->cursor().pos();
+    // qDebug()<<"painting w="<<this->width()<<", h:"<<this->height();
 
     //开始绘制，以当前窗口作为绘制设备
     painter.begin(this);

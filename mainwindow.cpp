@@ -10,14 +10,20 @@
 #include <QRadioButton>
 #include <QCheckBox>
 #include <QJsonDocument>
+#include <QScrollBar>
 #include "winhookwidget.h"
 #include "globalsignals.h"
-
+#include "imagetool.h"
+#include "pythonhandler.h"
+#include <QSplitter>
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
 {
+
+
+    qDebug()<<"初始化主窗体.";
     this->setWindowTitle("FutureOCR");
-    loadPreferenceInfo();
+    this->loadPreferenceInfo();
     // 创建一个QIcon对象，用于表示应用程序图标
     QIcon icon(":/icons/FutureOCR.ico");
 
@@ -29,21 +35,30 @@ MainWindow::MainWindow(QWidget *parent)
     centralLayout = new QVBoxLayout();
     // 键盘事件
     initGlobalKeyEvent();
+    // 识别完成事件
+    GlobalSignals *instance =  GlobalSignals::instance();
+    connect(instance,&GlobalSignals::signalMessageResult,this,&MainWindow::receiveMessageResult);
+
     // 中央组件
     centralWidget->setLayout(centralLayout);
     this->setCentralWidget(centralWidget);
+
     // 避免重复使用时无法通过if判断出现错误
     captureScreen = nullptr;
     initMenuTool();
     initImageView();
     initTextView();
+
     // 设置线程池的最大线程数
     threadPool = new QThreadPool();
-    threadPool->setMaxThreadCount(4);
-
+    threadPool->setMaxThreadCount(MAX_THREAD_COUNT);
+    qDebug()<<"创建线程池，最大线程数量："<<MAX_THREAD_COUNT;
 }
 
+
+
 void MainWindow::initGlobalKeyEvent(){
+    qDebug()<<"初始化全局键盘监听事件.";
 #ifdef Q_OS_WIN
     WinHookWidget *hook = new WinHookWidget();
     centralLayout->addWidget(hook);
@@ -73,6 +88,7 @@ QSize MainWindow::getSize(){
 }
 
 void MainWindow::initMenuTool(){
+    qDebug()<<"初始化窗体菜单.";
     toolBar = new QToolBar();
     // captureAction = new QAction("截屏(Prt)");
     ocrAction = new QAction("文本提取(En)");
@@ -109,26 +125,30 @@ void MainWindow::initMenuTool(){
 }
 
 void MainWindow::initImageView(){
+    qDebug()<<"初始化图像显示区.";
     // 创建一个 QGraphicsView 对象
-    view = new CustomGraphicsView();
-    view->setMinimumSize(getSize());
-    scene = new QGraphicsScene();
+    imageView = new CustomGraphicsView();
 
-    view -> setScene(scene);
+    imageView->setMinimumSize(getSize());
 
     QHBoxLayout *captureLayout = new QHBoxLayout();
-    captureLayout->addWidget(view);
+    captureLayout->addWidget(imageView);
     //添加：图片显示区
     centralLayout->addLayout(captureLayout);
     //消息传递：图片选中
-    connect(view,&CustomGraphicsView::signalGraphicsViewSelected,this,&MainWindow::receiveGraphicsViewSelected);
-    connect(view,&CustomGraphicsView::signalGraphicsPixmapItemAdded,this,&MainWindow::receiveGraphicsPixmapItemAdded);
-
+    connect(imageView,&CustomGraphicsView::signalGraphicsViewSelected,this,&MainWindow::receiveGraphicsViewSelected);
+    connect(imageView,&CustomGraphicsView::signalGraphicsPixmapItemAdded,this,&MainWindow::receiveGraphicsPixmapItemAdded);
+    connect(imageView,&CustomGraphicsView::signalGraphicsPixmapChangedDescription,this,&MainWindow::receivePixmapChangedDescription);
+}
+void MainWindow::receivePixmapChangedDescription(QString description){
+    noteLabel->setText(description);
 }
 
 void MainWindow::onPreferenceClicked(){
     tempPreferenceInfo.captureAutoOcr = preferenceInfo.captureAutoOcr;
     tempPreferenceInfo.pasteImageAutoOcr = preferenceInfo.pasteImageAutoOcr;
+    tempPreferenceInfo.copyTextAfterAutoMiniWindow = preferenceInfo.copyTextAfterAutoMiniWindow;
+    tempPreferenceInfo.enableImageEnhance = preferenceInfo.enableImageEnhance;
     // 创建一个QDialog
     QDialog dialog(this);
     dialog.setWindowTitle("偏好设置");
@@ -177,6 +197,26 @@ void MainWindow::onPreferenceClicked(){
     autoMiniWindowCheck.setChecked(preferenceInfo.copyTextAfterAutoMiniWindow==1);
     dialogLayout.addLayout(&coptTextLayout);
 
+    QHBoxLayout enhanceImageLayout;
+    QLabel enhanceImageLabel("OCR图像增强");
+    enhanceImageLabel.setAlignment(Qt::AlignLeft);
+    enhanceImageLabel.setMinimumWidth(lableWidth);
+    QCheckBox enchanceImageCheck("启用");
+    enchanceImageCheck.setProperty("id",4);
+    enhanceImageLayout.addWidget(&enhanceImageLabel);
+    enhanceImageLayout.addWidget(&enchanceImageCheck);
+    enchanceImageCheck.setChecked(preferenceInfo.enableImageEnhance==1);
+    dialogLayout.addLayout(&enhanceImageLayout);
+    QLabel enchanceDescription("提升图片中包含5号及以上较小字体识别准确率，但会使OCR速度降低");
+    QFont font;
+    //font.setItalic(true);
+    font.setPointSize(12);
+    QPalette palette = enchanceDescription.palette();
+    // 设置前景色为浅黑色（RGB: 86, 86, 86）
+    palette.setColor(QPalette::WindowText, QColor(86, 86, 86));
+    enchanceDescription.setPalette(palette);
+    enchanceDescription.setFont(font);
+    dialogLayout.addWidget(&enchanceDescription);
 
     QHBoxLayout operateLayout;
     QPushButton savePreferenceBtn("保存");
@@ -191,6 +231,7 @@ void MainWindow::onPreferenceClicked(){
     connect(&autoOcrCheck, &QCheckBox::stateChanged, this, &MainWindow::receivePreferenceCheckBoxChanged);
     connect(&autoOcrImageCheck, &QCheckBox::stateChanged, this, &MainWindow::receivePreferenceCheckBoxChanged);
     connect(&autoMiniWindowCheck, &QCheckBox::stateChanged, this, &MainWindow::receivePreferenceCheckBoxChanged);
+    connect(&enchanceImageCheck, &QCheckBox::stateChanged, this, &MainWindow::receivePreferenceCheckBoxChanged);
 
 
     // 信号槽连接
@@ -202,15 +243,16 @@ void MainWindow::onPreferenceClicked(){
     if (result == QDialog::Accepted) {
         // 用户点击了确认按钮
         // 执行保存操作
-        qDebug()<<"save...";
+        qDebug()<<"保存设置.";
         preferenceInfo.captureAutoOcr = tempPreferenceInfo.captureAutoOcr;
         preferenceInfo.pasteImageAutoOcr = tempPreferenceInfo.pasteImageAutoOcr;
         preferenceInfo.copyTextAfterAutoMiniWindow = tempPreferenceInfo.copyTextAfterAutoMiniWindow;
+        preferenceInfo.enableImageEnhance = tempPreferenceInfo.enableImageEnhance;
         savePreferenceSetting();
     } else if (result == QDialog::Rejected) {
         // 用户点击了取消按钮
         // 执行取消操作
-        qDebug()<<"cancel...";
+        qDebug()<<"取消设置.";
     }
 }
 void MainWindow::receivePreferenceCheckBoxChanged(int state){
@@ -222,16 +264,20 @@ void MainWindow::receivePreferenceCheckBoxChanged(int state){
         tempPreferenceInfo.pasteImageAutoOcr = state?1:0;
     }else if(senderCheckBox->property("id").toInt()==3){
         tempPreferenceInfo.copyTextAfterAutoMiniWindow = state?1:0;
+    }else if(senderCheckBox->property("id").toInt()==4){
+        tempPreferenceInfo.enableImageEnhance = state?1:0;
     }
 }
 
 void MainWindow::loadPreferenceInfo(){
     //定义文件对象
     QFile file(getConfigPath());
+    qDebug()<<"访问设置文件："<<getConfigPath();
     //打开文件，读写文件
     if (file.open(QIODevice::ReadWrite | QIODevice::Text)) {
         QTextStream inStream(&file);
         QString jsonContent = inStream.readAll();
+        qDebug()<<"加载偏好设置内容："<<jsonContent;
         QJsonDocument jsonDoc = QJsonDocument::fromJson(jsonContent.toUtf8());
         //QJsonDocument 转为 QJsonObject
         QJsonObject jsonObj = jsonDoc.object();
@@ -246,17 +292,23 @@ void MainWindow::loadPreferenceInfo(){
             if(!preferenceObj.value("copyTextAfterAutoMiniWindow").isNull()){
                 preferenceInfo.copyTextAfterAutoMiniWindow = preferenceObj.value("copyTextAfterAutoMiniWindow").toInt(0);
             }
+            if(!preferenceObj.value("enableImageEnhance").isNull()){
+                preferenceInfo.enableImageEnhance = preferenceObj.value("enableImageEnhance").toInt(0);
+            }
             // qDebug()<<"load data：captureAutoOcr="<<preferenceInfo.captureAutoOcr<<", pasteImageAuroOcr="<<preferenceInfo.pasteImageAutoOcr;
         }
         file.close();
+        return;
     }
+    qDebug()<<"初始化加载设置数据失败，无法打开文件.";
+
 }
 QString MainWindow::getConfigPath(){
     return  QCoreApplication::applicationDirPath()+"/conf.json";
 }
 
 bool MainWindow::savePreferenceSetting(){
-    qDebug()<<"save data：captureAutoOcr="<<preferenceInfo.captureAutoOcr<<", pasteImageAuroOcr="<<preferenceInfo.pasteImageAutoOcr;
+    //qDebug()<<"save data：captureAutoOcr="<<preferenceInfo.captureAutoOcr<<", pasteImageAuroOcr="<<preferenceInfo.pasteImageAutoOcr;
     // 获取文件路径的目录部分
     QString filePath = getConfigPath();
     QFileInfo fileInfo(filePath);
@@ -267,29 +319,29 @@ bool MainWindow::savePreferenceSetting(){
     QDir directory;
     if (!directory.exists(directoryPath)) {
         if (directory.mkpath(directoryPath)) {
-            qDebug() << "Directory created: " << directoryPath;
+            qDebug() << "成功创建设置文件: " << directoryPath;
         } else {
-            qDebug() << "Failed to create directory: " << directoryPath;
+            qDebug() << "创建设置文件失败: " << directoryPath;
             return false;
         }
     }
-    // 创建新文件
     if (file.open(QIODevice::WriteOnly)) {
         QJsonObject jsonObject;
         QJsonObject objectItem;
         objectItem["captureAutoOcr"] = preferenceInfo.captureAutoOcr;
         objectItem["pasteImageAutoOcr"] = preferenceInfo.pasteImageAutoOcr;
         objectItem["copyTextAfterAutoMiniWindow"] = preferenceInfo.copyTextAfterAutoMiniWindow;
+        objectItem["enableImageEnhance"] = preferenceInfo.enableImageEnhance;
         jsonObject["preferenceInfo"] = objectItem;
         QJsonDocument jsonDocument(jsonObject);
         QString json = jsonDocument.toJson(QJsonDocument::Indented);
         QTextStream out(&file);
         out << json;
         file.close();
-        qDebug()<<"Preference setting  have saved.";
+        qDebug()<<"设置内容已保存："<<json;
         return true;
     } else {
-        qDebug() << "Cannot open config file!";
+        qDebug() << "无法打开设置配置文件!";
     }
     return false;
 }
@@ -317,7 +369,14 @@ void MainWindow::initTextView(){
 
     noteLabel = new QLabel("");
     noteLabel->setAlignment(Qt::AlignCenter);
+
+    QFont font;
+    font.setPointSize(12);
     //添加：底部状态通知
+    noteLabel->setFont(font);
+    noteLabel->setWordWrap(true);
+    // 设置文本可被鼠标选中
+    noteLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
     centralLayout->addWidget(noteLabel);
     // 创建调色板对象
     QPalette palette;
@@ -325,17 +384,15 @@ void MainWindow::initTextView(){
     palette.setColor(QPalette::WindowText, QColor(51, 51, 51));
     // 应用调色板到QLabel
     noteLabel->setPalette(palette);
-
     //事件：文本选中状态改变
     connect(edit, &QPlainTextEdit::selectionChanged, this, &MainWindow::handleTextSelectionChanged);
+    // 文本改变
     connect(edit, &QPlainTextEdit::textChanged, this, &MainWindow::handleTextChanged);
-
     //事件：复制文本按钮
     QObject::connect(copyTextBtn, &QPushButton::clicked, this, &MainWindow::onCopyTextClicked);
     //事件：截屏按钮
     //QObject::connect(captureBtn, &QPushButton::clicked, this, &MainWindow::onPasteImageClicked);
     QObject::connect(captureBtn, &QPushButton::clicked, this, &MainWindow::onCaptureButtonClicked);
-
 }
 
 
@@ -355,66 +412,49 @@ void MainWindow::handleTextChanged(){
 void MainWindow::receiveGraphicsViewSelected(QPixmap selectedPixmap){
     addOrcTextTask(selectedPixmap);
 }
-void MainWindow::setPixmap(QPixmap &pixmap){
-    // 创建一个新的 QGraphicsPixmapItem 并将其添加到场景中
-    QGraphicsPixmapItem *item = new QGraphicsPixmapItem(pixmap);
 
-    if(!scene->items().isEmpty()){
-        scene->removeItem(scene->items().first());
-        view->resetMouseState();
-    }
-    //scene->removeItem();
-    scene->addItem(item);
-    // 创建视图
-    // 将场景设置到视图中
-    view->setScene(scene);
-    // 设置缩放比例
-    //view->scale(0.5, 0.5);
-    // 将项目居中显示
-    item->setPos((scene->width() - item->boundingRect().width()) / 2,
-                 (scene->height() - item->boundingRect().height()) / 2);
-}
 
 void MainWindow::onPasteImageClicked(){
     QClipboard *clipboard = QApplication::clipboard();
     QString text = clipboard->text();
-    //qDebug()<<"text:"<<text;
+    qDebug()<<"收到粘贴数据:"<<text;
     const QMimeData *mimeData = clipboard->mimeData();
+    QPixmap pixmap;
     if (mimeData->hasImage()) {
         // if (variant.canConvert<QImage>()) {
         //     QImage image = variant.value<QImage>();
         // }
-        QPixmap pixmap = qvariant_cast<QPixmap>(mimeData->imageData());
-        addOrcTextTask(pixmap);
-        setPixmap(pixmap);
-        // 判断粘贴后是否自动识别
-        if(preferenceInfo.pasteImageAutoOcr == 1){
-            this->onPixmapOcrClicked();
-        }
-        return;
+        pixmap = qvariant_cast<QPixmap>(mimeData->imageData());
+        qDebug()<<"Ctr + V 图片数据大小："<<pixmap.width()<<" x "<<pixmap.height();
+
     }
     if(text.startsWith("file:///")){
         QString filePath = text.remove("file:///");
-        //qDebug()<<"filePath:"<<filePath;
+        qDebug()<<"Ctr+V粘贴文件:"<<filePath;
         QFileInfo fileInfo(filePath);
         // 判断文件是否为图片，你可以根据需要使用不同的方法
         QStringList imageExtensions;
         imageExtensions << "png" << "jpg" << "jpeg" << "gif" << "bmp";
         QString extension = fileInfo.suffix().toLower();
         if(imageExtensions.contains(extension)){
-            QPixmap pixmap(filePath);
-            setPixmap(pixmap);
+            pixmap = QPixmap(filePath);
         }
+    }
+    if(!pixmap.isNull()){
+        QString message = QString("粘贴图像分辨率：%1 x %2").arg(pixmap.width()).arg(pixmap.height());
+        qDebug()<<message;
+        noteLabel->setText(message);
+        QImage image = pixmap.toImage();
+        imageView->setSrcImage(image);
+        imageView->updatePixmap(pixmap);
         // 判断粘贴后是否自动识别
         if(preferenceInfo.pasteImageAutoOcr == 1){
-            this->onPixmapOcrClicked();
+            addOrcTextTask(pixmap);
+            return;
         }
-        return;
+    }else{
+        noteLabel->setText("未获取到粘贴板图片.");
     }
-
-    noteLabel->setText("未获取到粘贴板图片.");
-
-
 }
 void MainWindow::onCopyTextClicked(){
     QClipboard *clipboard = QApplication::clipboard();
@@ -436,17 +476,26 @@ void MainWindow::handleTextSelectionChanged(){
         copyTextBtn->setText("复制文本");
     }
 }
-void MainWindow::onRunnableFinished(QString content) {
-    QString result = ocrTextFormat(content);
-    if(result!=edit->toPlainText()){
-        //qDebug()<<"result set...";
-        edit->setPlainText(result);
-    }
+void MainWindow::receiveMessageResult(QString content,int code) {
+    qDebug()<<"已收到消息，消息编码："<<code;
     taskCount -= 1;
-    //qDebug()<<"finished taskCount:"<<taskCount;
-    if(taskCount==0){
-        noteLabel->setText("识别完成.");
+    if(code==MessageCode::OCR_OK){
+        QString result = ocrTextFormat(content);
+        QString message = "";
+        if(result!=""){
+            edit->setPlainText(result);
+        }else{
+            message = "，但未识别出内容.";
+        }
+        if(taskCount==0){
+            noteLabel->setText("识别完成"+message);
+        }else{
+            noteLabel->setText("已识别1个"+message);
+        }
+    }else if(code==MessageCode::OCR_ERR){
+        noteLabel->setText(content);
     }
+
 }
 
 QString MainWindow::ocrTextFormat(QString content){
@@ -476,7 +525,7 @@ QString MainWindow::ocrTextFormat(QString content){
 }
 
 void MainWindow::receiveGraphicsPixmapItemAdded(){
-    QString fileName = view->property("fileName").toString();
+    QString fileName = imageView->property("fileName").toString();
     noteLabel->setText("已加载图片："+fileName);
     if(preferenceInfo.pasteImageAutoOcr==1){
         onPixmapOcrClicked();
@@ -526,18 +575,13 @@ void MainWindow::onOpenButtonClicked(){
     QString filePath = QFileDialog::getOpenFileName(this, "选择图片", "", "图片文件 (*.png *.jpg *.jpeg)");
     if (filePath != "") {
         // 创建一个QPixmap对象，并从选择的文件中加载图片
-        if(!scene->items().isEmpty()){
-            QGraphicsItem *item = scene->items().first();
-            scene->removeItem(item);
-        }
         QPixmap pixmap(filePath);
-        //QGraphicsPixmapItem *pixItem = static_cast<QGraphicsPixmapItem *>(item);
-        //pixItem->setPixmap(pixmap);
-        scene->addPixmap(pixmap);
+        QImage image = pixmap.toImage();
+        imageView->setSrcImage(image);
+        imageView->updatePixmap(pixmap);
         this->setProperty("path",filePath);
         QFileInfo fileInfo(filePath);
         noteLabel->setText("已打开图片："+fileInfo.fileName());
-
         // 创建一个QLabel对象，并设置其内容为加载的图片
         //QLabel label;
         //label.setPixmap(pixmap);
@@ -553,33 +597,30 @@ void MainWindow::onOpenButtonClicked(){
 
 
 void MainWindow::onSaveButtonClicked(){
-    if(!scene->items().isEmpty()){
+    QPixmap pixmap = imageView->getCurrPixmap();
+    if(!pixmap.isNull()){
         // 打开文件选择器
         QString filePath = QFileDialog::getSaveFileName(this, "保存为...", "", "图片文件 (*.png *.jpg *.jpeg)");
         if (filePath != "") {
-            // 创建一个QPixmap对象，并从选择的文件中加载图片
-            QGraphicsPixmapItem *item = static_cast<QGraphicsPixmapItem *>(scene->items().first());
             // 将图片保存到指定的文件路径
-            item->pixmap().save(filePath);
+            pixmap.save(filePath);
             noteLabel->setText("图片保存到："+filePath);
-
         }
     }else{
         noteLabel->setText("没有可保存的图片.");
     }
-
 }
 
 void MainWindow::onCopyImageClicked(){
-    if(!scene->items().isEmpty()){
-        QGraphicsPixmapItem *item = static_cast<QGraphicsPixmapItem *>(scene->items().first());
-        QImage image =  item->pixmap().toImage();
+    QPixmap pixmap = imageView->getCurrPixmap();
+    if(!pixmap.isNull()){
+        QImage currImage = pixmap.toImage();
         // 加载图片到QImage对象
         //QImage image("path/to/image.png");
         // 获取系统剪贴板
         QClipboard *clipboard = QApplication::clipboard();
         // 将图片复制到剪贴板
-        clipboard->setImage(image);
+        clipboard->setImage(currImage);
         noteLabel->setText("图片已复制到粘贴板.");
     }else{
         noteLabel->setText("没有可复制的图片.");
@@ -670,9 +711,6 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
         onOpenButtonClicked();
     }else if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_S) {
         onSaveButtonClicked();
-        // }else if(event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_Print){
-        //     qDebug() << "Ctrl + PrtSc键组合按下事件处理";
-        // onCaptureButtonClicked();
     }else if (event->modifiers() & Qt::ControlModifier && (event->modifiers() & Qt::ShiftModifier) && event->key() == Qt::Key_C) {
         onCopyImageClicked();
     }else if (event->modifiers() == Qt::ControlModifier && event->key() == Qt::Key_V) {
@@ -686,115 +724,79 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
 
 
 void MainWindow::onPixmapOcrClicked(){
-    if(!scene->items().isEmpty()){
-        QGraphicsPixmapItem *item = static_cast<QGraphicsPixmapItem *>(scene->items().first());
-        QTransform transform;
-        QPixmap pixmap = item->pixmap();
-        // 将原点移动到中心
-        //transform.translate(pixmap.width() / 2, pixmap.height() / 2);
-        transform.rotate(angle);
-        //transform.translate(-pixmap.width() / 2, -pixmap.height() / 2); // 将原点移回原位
-        pixmap = pixmap.transformed(transform);
+    QPixmap pixmap = this->imageView->getCurrPixmap();
+    if(!pixmap.isNull()){
         addOrcTextTask(pixmap);
     }else{
         noteLabel->setText("未读取到图片.");
     }
 }
-void MainWindow::wheelEvent(QWheelEvent *event)
-{
-    // 检查是否按下了 Ctrl 键
-    if(event->modifiers() & Qt::ControlModifier && !(event->modifiers() & Qt::ShiftModifier)){
-        // 检查 Ctrl 键是否按下
-        if (event->modifiers() & Qt::ControlModifier) {
-            // qDebug()<<"ctr+滚轮";
-            // 向前滚动，放大
-            if (event->angleDelta().y() > 0) {
-                view->scale(1.2, 1.2);
-                scale += 0.2;
-            } else if(event->angleDelta().y()<0) {
-                view->scale(1/1.2,1/1.2);
-                scale -= 0.2;
-            }
-            noteLabel->setText("缩放大小："+QString::number(scale*100));
-            // qDebug()<<"scale:"<<scale;
-            // 锁定视图以防止并发修改
-            // view->blockSignals(true);
-            // view->scale(scale, scale);
-            // view->blockSignals(false);
-        }
-    } else if( event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier))
-    {
-        if(!scene->items().isEmpty()){
-            // qDebug()<<"not empty...";
-            QGraphicsPixmapItem *item = static_cast<QGraphicsPixmapItem *>(scene->items().first());
-            // 将旋转点设置为图像中心 item->boundingRect().center()
-            //item->setTransformOriginPoint(item->boundingRect().center());
-            // 开始旋转
-            if(event->angleDelta().y() > 0){
-                angle += 1;
-            }else if(event->angleDelta().y()<0) {
-                angle -= 1;
-            }
-            // qDebug()<<"向上旋转";
-            scene->removeItem(item);
 
-            QTransform transform;
-            QPixmap pixmap = item->pixmap();
-            // 将原点移动到中心
-            transform.translate(pixmap.width() / 2, pixmap.height() / 2);
-            transform.rotate(angle);
-            transform.translate(-pixmap.width() / 2, -pixmap.height() / 2); // 将原点移回原位
-            item->setTransform(transform);
-            //pixmap->setTransform()
-            // item->setPixmap(rotatedPixmap);
-            noteLabel->setText("旋转角度："+QString::number(fmod(angle, 360)));
-            scene->addItem(item);
-        }
-    }
-}
 
 void MainWindow::addOrcTextTask(QPixmap pixmap){
-    // 创建一个任务并将其添加到线程池
-    taskCount += 1;
-    pixmap = adjustPixmap(pixmap);
-    noteLabel->setText("正在识别...");
-    OcrTextTask* task = new OcrTextTask(pixmap);
-    task->setAutoDelete(true);
-    connect(task, SIGNAL(finished(QString)), this, SLOT(onRunnableFinished(QString)));
-    threadPool->start(task);
+    bool enablePaddleOcr = true;
+    if(enablePaddleOcr){
+        // 创建一个任务并将其添加到线程池
+        taskCount += 1;
+        //pixmap = adjustPixmap(pixmap);
+        noteLabel->setText("正在识别...");
+        // QPixmap targetPixmap = this->getAdjustedPixmap(pixmap);
+        QImage image = pixmap.toImage();
+        // ImageTool::showImage(image,"Adjust Image");
+        // pixmap = QPixmap::fromImage(imageTarget);
+        // Pix *pix = ImageTool::qImageToPix(image);
+        PaddleOcrTask* task = new PaddleOcrTask(image);
+        task->setAutoDelete(true);
+        //connect(task, SIGNAL(finished(QString)), this, SLOT(receiveMessageResult(QString)));
+        threadPool->start(task);
+    }else{
+    if(pixmap.width()>0 && pixmap.height()>0){
+        // 创建一个任务并将其添加到线程池
+        taskCount += 1;
+        //pixmap = adjustPixmap(pixmap);
+        noteLabel->setText("正在识别...");
+        QPixmap targetPixmap = this->getAdjustedPixmap(pixmap);
+        QImage image = targetPixmap.toImage();
+        // ImageTool::showImage(image,"Adjust Image");
+        // pixmap = QPixmap::fromImage(imageTarget);
+        Pix *pix = ImageTool::qImageToPix(image);
+        OcrTextTask* task = new OcrTextTask(pix);
+        task->setAutoDelete(true);
+        //connect(task, SIGNAL(finished(QString)), this, SLOT(receiveMessageResult(QString)));
+        threadPool->start(task);
+    }
+    }
+
 }
 
-QPixmap &MainWindow::adjustPixmap(QPixmap &pixmap){
-    // 定义放大倍数
-    float scaleFactor = 1.5;
-    // 计算目标宽度和高度
-    QSize targetSize(pixmap.width() * scaleFactor, pixmap.height() * scaleFactor);
-
+QPixmap MainWindow::getAdjustedPixmap(QPixmap &pixmap){
+    // 定义放大倍数，对5号及以上字体提升识别效果
+    QImage targetImage = pixmap.toImage();
+    if(this->preferenceInfo.enableImageEnhance==1){
+        float scaleFactor = 1.5;
+        // 计算目标宽度和高度
+        QSize targetSize(targetImage.width() * scaleFactor, targetImage.height() * scaleFactor);
+        targetImage = targetImage.scaled(targetSize, Qt::KeepAspectRatio,Qt::SmoothTransformation);
+    }
     // 转换为灰度图像
-    QImage grayImage = pixmap.toImage().convertToFormat(QImage::Format_Grayscale8);
-
-    // 放大图片
-    pixmap = QPixmap::fromImage(grayImage).scaled(targetSize, Qt::KeepAspectRatio,Qt::SmoothTransformation);
-    return pixmap;
+    QImage grayImage = targetImage.convertToFormat(QImage::Format_Grayscale8);
+    return  QPixmap::fromImage(grayImage);
 }
-
 void MainWindow::receiveCaptureCancel(){
     this->setWindowOpacity(1);
-    this->show();
+    this->showNormal();
 }
-void MainWindow::receiveScreenCapture(QPixmap catureImage){
-    if(!scene->items().isEmpty()){
-        QGraphicsItem *oldImage = scene->items().first();
-        scene->removeItem(oldImage);
-        view->resetMouseState();
-        delete oldImage;
-    }
-    this->setPixmap(catureImage);
+void MainWindow::receiveScreenCapture(QPixmap caturePixmap){
+    qDebug()<<"收到截屏图片大小："<<caturePixmap.size();
+    QImage image = caturePixmap.toImage();
+    //QImage imageTarget = ImageTool::toGrayBinaryImage(image);
+    imageView->setSrcImage(image);
+    imageView->updatePixmap(caturePixmap);
     this->setWindowOpacity(1);
     // 最小化窗口
     // 确保最小化窗口正常显示出来
     this->showNormal();
-    addOrcTextTask(catureImage);
+    addOrcTextTask(caturePixmap);
 }
 
 MainWindow::~MainWindow()

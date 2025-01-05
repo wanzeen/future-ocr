@@ -19,101 +19,30 @@ find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets)
 
 # Debug 构建类型下的配置
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(PYTHON_HOME "D:/User/Qt/QtProject/FutureOCR/python/Python312")
     message(STATUS "Pyhon Debug..")
-    # 添加调试相关的配置
-    add_definitions(-DDEBUG_MODE)
-    # 其他 Debug 模式下的配置
-    set(Python3_ROOT_DIR D:/User/Python/Python312)
-    # set(Python3_FIND_STRATEGY LOCATION)
-    # set(Python3_ROOT_DIR D:/User/Python/Python/Python311) # 修改为您的 Python3 安装路径
-    set(Python3_INCLUDE_DIRS D:/User/Python/Python312/include)
-    # find_package(Python3 COMPONENTS Interpreter Development)
-    # set(Python3_DIR "D:/User/vcpkg/packages/python3_x64-windows/share/python3")
-    set(Python3_LIBRARIES D:/User/Python/Python312/libs)
-    set(Python3_DLL_DIR D:/User/Python/Python312)
-    include_directories(D:/User/Python/Python312/include)
-    link_directories(D:/User/Python/Python312/libs)
-    find_package(Python3 COMPONENTS Development REQUIRED)
-
 endif()
-
-# Release 构建类型下的配置
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(PYTHON_HOME "D:/User/Python/Python312")
     message(STATUS "Pyhon Release...")
     # 添加优化相关的配置
     add_definitions(-DOPTIMIZE_MODE)
-    # 其他 Release 模式下的配置
-    set(Python3_ROOT_DIR D:/User/Python/Python312)
-    # set(Python3_FIND_STRATEGY LOCATION)
-    # set(Python3_ROOT_DIR D:/User/Python/Python/Python311) # 修改为您的 Python3 安装路径
-    set(Python3_INCLUDE_DIRS D:/User/Python/Python312/include)
-    # find_package(Python3 COMPONENTS Interpreter Development)
-    # set(Python3_DIR "D:/User/vcpkg/packages/python3_x64-windows/share/python3")
-    set(Python3_LIBRARIES D:/User/Python/Python312/libs)
-    set(Python3_DLL_DIR D:/User/Python/Python312)
-    include_directories(D:/User/Python/Python312/include)
-    link_directories(D:/User/Python/Python312/libs)
-    find_package(Python3 COMPONENTS Development REQUIRED)
 endif()
-
-
-
-# set(PYTHON_LIBRARY "D:/User/Python/Python312/libs") # 根据您的 Python 版本和实际路径修改
-# 添加 xxx.dll 文件
-# add_library(python312 SHARED IMPORTED)
-
-# 设置 xxx.dll 文件的路径
-# set_target_properties(python312 PROPERTIES IMPORTED_LOCATION D:/User/Python/Python312/python312.dll)
-# Python3_LIBRARIES Python3_INCLUDE_DIRS
-
-# 如果使用的是非系统目录下的 Python 可以通过指定 Python3_ROOT_DIR 改变查找路径
-# set(Python3_ROOT_DIR "${CMAKE_SOURCE_DIR}/venv")
-# find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-# add_executable(cpp-python-test main.cpp)
-
-# set(Python3_ROOT_DIR "D:/User/DevelopKit/Python/venv")
+# 添加调试相关的配置
+add_definitions(-DDEBUG_MODE)
+# 其他 Debug 模式下的配置
+set(Python3_ROOT_DIR ${PYTHON_HOME})
+# set(Python3_FIND_STRATEGY LOCATION)
+# set(Python3_ROOT_DIR D:/User/Python/Python/Python311) # 修改为您的 Python3 安装路径
+set(Python3_INCLUDE_DIRS ${PYTHON_HOME}/include)
+# find_package(Python3 COMPONENTS Interpreter Development)
 # set(Python3_DIR "D:/User/vcpkg/packages/python3_x64-windows/share/python3")
-# set(Python3_INCLUDE_DIR "D:/User/vcpkg/packages/python3_x64-windows/include")
-# set(Python3_LIBRARIE "D:/User/vcpkg/packages/python3_x64-windows/lib")
+set(Python3_LIBRARIES ${PYTHON_HOME}/libs)
+set(Python3_DLL_DIR ${PYTHON_HOME})
+include_directories(${PYTHON_HOME}/include)
+link_directories(${PYTHON_HOME}/libs)
+find_package(Python3 COMPONENTS Development REQUIRED)
 
-
-# find_package(Python3 COMPONENTS Development REQUIRED)
-# find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-# find_package(Python COMPONENTS Interpreter Development)
-# find_package(pybind11 CONFIG)
-
-   # pybind11 method:
-   # pybind11_add_module(MyModule1 src1.cpp)
-
-   # Python method:
-   # Python_add_library(MyModule2 src2.cpp)
-   # set_target_properties(${PROJECT_NAME} PROPERTIES
-   #     INTERPROCEDURAL_OPTIMIZATION ON
-   #     CXX_VISIBILITY_PRESET ON
-   #     VISIBILITY_INLINES_HIDDEN ON
-   # )
-
-#################### 链接 OpenCV库  #####################
-set(OpenCV_DIR "D:/User/vcpkg/packages/opencv4_x64-windows/share/opencv4")
-set(OPENCV_DLL_DIR "D:/User/vcpkg/packages/opencv4_x64-windows/bin")
-include_directories("D:/User/vcpkg/packages/opencv4_x64-windows/include")
-
-set(quirc_DIR "D:/User/vcpkg/installed/x64-windows/share/quirc")
-
-set(Protobuf_DIR "D:/User/vcpkg/installed/x64-windows/share/protobuf")
-find_package(Protobuf CONFIG REQUIRED)
-message(STATUS "building protobuf")
-
-
-set(TIFF_DIR "D:/User/vcpkg/installed/x64-windows/share/tiff")
-set(TIFF_INCLUDE_DIR "D:/User/vcpkg/packages/tiff_x64-windows")
-set(TIFF_LIBRARY "D:/User/vcpkg/packages/tiff_x64-windows/lib/tiff.lib")
-find_package(TIFF REQUIRED)
-message(STATUS "building tiff")
-
-find_package(OpenCV CONFIG REQUIRED)
-
-link_directories(D:/User/vcpkg/packages/opencv4_x64-windows/lib)
 
 #################### 链接 tesseract库 #####################
 set(OpenJPEG_DIR "D:/User/vcpkg/installed/x64-windows/share/openjpeg")
@@ -134,7 +63,6 @@ set(Tesseract_DIR "D:/User/vcpkg/installed/x64-windows/share/tesseract")
 set(Tesseract_INCLUDE_DIR "D:/User/vcpkg/packages/tesseract_x64-windows/include")
 find_package(Tesseract CONFIG REQUIRED)
 message(STATUS "building tesseract")
-
 
 set(PROJECT_SOURCES
         main.cpp
@@ -157,12 +85,50 @@ set(PROJECT_SOURCES
 
 )
 
+# set(BOOST_ROOT "D:/User/vcpkg/packages/boost-interprocess_x64-windows")  # 替换为 Boost 安装路径
+# set(BOOST_ROOT "D:/User/vcpkg/packages")  # 替换为 Boost 安装路径
+# set(Boost_DIR "")
+# set(Boost_INCLUDE_DIR "D:/User/vcpkg/installed/x64-windows/include")
+# 设置 Boost 的路径，如果你使用 vcpkg，直接引用 vcpkg 的安装路径
+# set(Boost_INCLUDE_DIR "D:/path/to/boost/include")  # Boost 头文件路径
+# set(Boost_LIBRARY_DIR "D:/User/vcpkg/installed/x64-windows/lib")  # Boost 库文件路径
+# set(BOOST_ROOT "D:/User/vcpkg/installed/x64-windows")
+# set(BOOST_LIBRARYDIR "D:/User/vcpkg/installed/x64-windows/lib")
+# include_directories(${Boost_INCLUDE_DIRS})
+# set(Boost_INCLUDE_DIR "D:/User/vcpkg/packages/boost-interprocess_x64-windows/include")
+# set(BOOST_LIBRARYDIR "D:/User/vcpkg/packages/boost-interprocess_x64-windows/stage/lib")
+# find_package(Boost REQUIRED COMPONENTS interprocess)
+# set(BOOST_ROOT "D:/User/Qt/boost_1_87_0/boost")
+# set(BOOST_INCLUDE_DIR "${BOOST_ROOT}")
+# set(BOOST_LIBRARYDIR "${BOOST_ROOT}/lib")
+# set(BOOST_LIBRARYDIR "D:/User/vcpkg/installed/x64-windows/lib")
+# find_package(Boost REQUIRED COMPONENTS system filesystem interprocess)
+# include_directories("D:/User/vcpkg/installed/x64-windows/include")
+
+# if (Boost_FOUND)
+#     message(STATUS "Boost found: ${Boost_INCLUDE_DIRS}")
+#     include_directories(${Boost_INCLUDE_DIRS})  # 包含 Boost 头文件目录
+#     link_directories(${Boost_LIBRARY_DIR})  # 设置 Boost 库目录
+# else()
+#     message(FATAL_ERROR "Boost not found!")
+# endif()
+
+# find_package(Boost REQUIRED [COMPONENTS <libs>...])
+# target_link_libraries(main PRIVATE Boost::boost Boost::<lib1> Boost::<lib2> ...)
+
+# add_executable(shared_memory_example main.cpp)
+# target_link_libraries(shared_memory_example Boost::Boost)
+
+
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(FutureOCR
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
         resources.qrc
         pythonhandler.h pythonhandler.cpp
+        pythreadstatelock.h pythreadstatelock.cpp
+        paddleocrtask.h paddleocrtask.cpp
+        README.md
     )
 # Define target properties for Android with Qt 6 as:
 #    set_property(TARGET FutureOCR APPEND PROPERTY QT_ANDROID_PACKAGE_SOURCE_DIR
@@ -186,11 +152,12 @@ target_link_libraries(FutureOCR PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Qt${QT_VERSION_MAJOR}::Widgets)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE opencv_ml opencv_dnn opencv_core opencv_flann opencv_imgcodecs)
 # file:///D:/User/vcpkg/packages/opencv4_x64-windows/debug/bin/opencv_highgui4d.dll
 target_link_libraries(${PROJECT_NAME} PRIVATE Tesseract::libtesseract)
 
 target_link_libraries(${PROJECT_NAME} PRIVATE leptonica)
+
+# target_link_libraries(${PROJECT_NAME} PRIVATE Boost::boost Boost::interprocess)
 
 # target_link_libraries(${PROJECT_NAME} PRIVATE pybind11::headers)
 
@@ -199,8 +166,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE leptonica)
 # target_link_libraries(${PROJECT_NAME} PRIVATE python3 python311)
 # target_include_directories(${PROJECT_NAME} PRIVATE ${Python3_INCLUDE_DIR})
 
-target_link_libraries(${PROJECT_NAME} PRIVATE python312)
-
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_link_libraries(${PROJECT_NAME} PRIVATE python312_d)
+endif()
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    target_link_libraries(${PROJECT_NAME} PRIVATE python312)
+endif()
 
 # Qt for iOS sets MACOSX_BUNDLE_GUI_IDENTIFIER automatically since Qt 6.1.
 # If you are developing for iOS or macOS you should consider setting an
@@ -234,13 +205,6 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     COMMAND ${CMAKE_COMMAND} -E copy "${Python3_DLL_DIR}/python312_d.dll" "${CMAKE_BINARY_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy "${Python3_DLL_DIR}/python3_d.dll" "${CMAKE_BINARY_DIR}"
     )
-
-    message(STATUS "copy OpenCV dll...")
-    # opencv 复制dll文件到当前构建目录下
-    ADD_CUSTOM_COMMAND(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy "${OPENCV_DLL_DIR}/opencv_core4.dll" "${CMAKE_BINARY_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy "${OPENCV_DLL_DIR}/opencv_imgproc4.dll" "${CMAKE_BINARY_DIR}"
-    )
 endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -249,9 +213,5 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
     COMMENT "Copying dll" VERBATIM
     COMMAND ${CMAKE_COMMAND} -E copy "${Python3_DLL_DIR}/python312.dll" "${CMAKE_BINARY_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy "${Python3_DLL_DIR}/python3.dll" "${CMAKE_BINARY_DIR}"
-    )
-    ADD_CUSTOM_COMMAND(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy "${OPENCV_DLL_DIR}/opencv_core4.dll" "${CMAKE_BINARY_DIR}"
-    COMMAND ${CMAKE_COMMAND} -E copy "${OPENCV_DLL_DIR}/opencv_imgproc4.dll" "${CMAKE_BINARY_DIR}"
     )
 endif()

@@ -6,93 +6,72 @@
 #include <QGraphicsScene>
 #include "imagetool.h"
 CustomGraphicsView::CustomGraphicsView(QWidget *parent):QGraphicsView(parent) {
+    qDebug()<<"初始化CustomGraphicsView.";
+    setAcceptDrops(true);
     imageScene = new QGraphicsScene();
-    this -> setScene(imageScene);
-    this->setAcceptDrops(true);
+    setScene(imageScene);
+    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
 }
 
-
-static void testTransform(QPixmap originalImage)
-{
-
-    // 加载原始图像
-    // QPixmap originalImage(":/path/to/your/image.png");
-    qDebug()<<"pixmap w:"<<originalImage.size();
-    // 定义透视变换的四个点
-    // QPointF srcPoints[4] = { QPointF(0, 0), QPointF(originalImage.width(), 0), QPointF(originalImage.width(), originalImage.height()), QPointF(0, originalImage.height()) };
-    // QPointF dstPoints[4] = { QPointF(0, 0), QPointF(originalImage.width(), 100), QPointF(originalImage.width(), originalImage.height() - 100), QPointF(0, originalImage.height()) };
-
-    /*
-    // 定义透视变换的四个点
-    QPolygonF srcPoints;
-    srcPoints << QPointF(0, 0) << QPointF(originalImage.width(), 0) << QPointF(originalImage.width(), originalImage.height()) << QPointF(0, originalImage.height());
-
-    QPolygonF dstPoints;
-    dstPoints << QPointF(0, 0) << QPointF(originalImage.width(), 100) << QPointF(originalImage.width(), originalImage.height() - 100) << QPointF(0, originalImage.height());
-
-
-    // 创建透视变换
-    QTransform perspectiveTransform;
-    QTransform::quadToQuad(srcPoints, dstPoints,perspectiveTransform);
-
-    // 透视变换后的图片
-    QPixmap transformedImage(originalImage.size());
-    transformedImage.fill(Qt::transparent);
-
-    // 进行透视变换
-    QPainter painter(&transformedImage);
-    painter.setTransform(perspectiveTransform);
-    painter.drawPixmap(0, 0, originalImage);
-
-    // 保存透视变换后的图片
-    // transformedImage.save("transformed_image.png");
-    ImageTool::showImage(transformedImage.toImage(),"Transform Image");
-*/
-    // 定义倾斜角度
-    qreal skewAngle = 30.0;
-
-    // 创建透视变换矩阵
-    QTransform perspectiveTransform;
-    qreal tanSkewAngle = tan(qDegreesToRadians(skewAngle));
-    perspectiveTransform.setMatrix(1, 0, tanSkewAngle, 0, 1, 0, 0, 0, 1);
-
-    // 透视变换后的图片
-    QPixmap transformedImage(originalImage.size());
-    transformedImage.fill(Qt::transparent);
-
-    // 进行透视变换
-    QPainter painter(&transformedImage);
-    painter.setTransform(perspectiveTransform);
-    painter.drawPixmap(0, 0, originalImage);
-    ImageTool::showImage(transformedImage.toImage(),"Transform Image");
-
-}
 
 
 void CustomGraphicsView::resetMouseState(){
     this->currentMouseState = MouseState::Init;
+    scenePosStart = QPointF(0,0);
+    scenePosEnd = QPointF(0,0);
+    selectionRect = QRectF();
+
 }
 void CustomGraphicsView::mousePressEvent(QMouseEvent *event) {
+    // qDebug()<<"mousePressEvent...";
+    if(this->imageMode==1){
+        return;
+    }
+    if(isDrawBoxes && !bakPixmap.isNull()){
+        // 清除选区
+        this->updatePixmap(bakPixmap);
+        isDrawBoxes = false;
+    }
     if(event->button() != Qt::LeftButton){
         return;
     }
-    startPoint = event->pos();
-    endPoint = event->pos();
+    // startPoint = event->pos();
+    // 转换鼠标按下的位置到场景坐标系
+    // qDebug()<<"press startPoint:"<<startPoint;
+
+    scenePosStart = this->mapToScene(event->pos());
+    scenePosEnd = scenePosStart;
+    //qDebug()<<"press scenePos:"<<scenePos;
+
+    //endPoint = event->pos();
     currentMouseState = MouseState::Press;
     this->viewport()->update();
 }
 void CustomGraphicsView::mouseMoveEvent(QMouseEvent* event){
+    // qDebug()<<"mouseMoveEvent...";
+    if(this->imageMode==1){
+        return;
+    }
+    if (window()->isActiveWindow()) {
+        QGraphicsView::mouseMoveEvent(event);
+    } else {
+        window()->activateWindow();
+    }
     // 更新选定的区域
     if (currentMouseState == MouseState::Press || currentMouseState == MouseState::Drag)
     {
         currentMouseState = MouseState::Drag;
-        endPoint = event->pos();
+        // endPoint = event->pos();
+        scenePosEnd = this->mapToScene(event->pos());
         this->viewport()->update();
     }
 }
 void CustomGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
     // qDebug()<<"mouseRelease...";
     //不是鼠标左键
+    if(this->imageMode==1){
+        return;
+    }
     if(event->button() != Qt::LeftButton){
         return;
     }
@@ -105,17 +84,43 @@ void CustomGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
     //选中
     currentMouseState = MouseState::Selected;
 
+    // endPoint = event->pos();
+    scenePosEnd = this->mapToScene(event->pos());
+    // qDebug()<<"release endPoint:"<<endPoint;
+    // qDebug()<<"release scenePosEnd:"<<scenePosEnd;
+
     if(!this->scene()->items().isEmpty()){
         //刷新选区，消除选中样式
         currentMouseState = MouseState::Refresh;
         this->viewport()->update();
         // 合并两个坐标为一个矩形选框
-        QRect selectedRect(startPoint, endPoint);
+        // QRect selectedRect(startPoint, endPoint);
+
+        // 计算矩形区域
+        selectionRect = QRectF(scenePosStart, scenePosEnd).normalized();
+
         //截图选区图片
-        QPixmap selectedPixmap = this->grab(selectedRect);
+        // QPixmap selectedPixmap = this->grab(selectedRect);
+
+        // 也可以是QImage
+        //QImage selectedImage(selectionRect.size().toSize(), QImage::Format_ARGB32);
+        // 选中区域图像大小
+        QPixmap  selectedImage(selectionRect.size().toSize());
+        // QImage fullImage(this->sceneRect().size().toSize(), QImage::Format_ARGB32);
+        selectedImage.fill(Qt::transparent);
+        QPainter painter(&selectedImage);
+        // 设置抗锯齿渲染，减少图像边缘锯齿效果的技术，使得图像边缘更加平滑和清晰
+        painter.setRenderHint(QPainter::Antialiasing);
+        // 将selectedRect矩形在场景坐标系中进行平移，使其位置与场景的左上角对齐，然后将结果保存在sceneRect中
+        QRectF sceneRect = selectionRect.translated(imageScene->sceneRect().topLeft());
+        // 将场景中的选中区域渲染到图像中时，只渲染sceneRect所指定的部分
+        imageScene->render(&painter, QRectF(), sceneRect);
+        painter.end();
+        // 显示图像
+        // ImageTool::showImage(selectedImage.toImage(),"选中预览");
         // testTransform(selectedPixmap);
         // 发送OCR识别
-        emit signalGraphicsViewSelected(selectedPixmap);
+        emit signalGraphicsViewSelected(selectedImage);
         // 重新刷新选区为选中状态
         currentMouseState = MouseState::Selected;
         this->viewport()->update();
@@ -127,23 +132,35 @@ void CustomGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
 // QColor(255, 0, 0) 红色
 
 void CustomGraphicsView::paintEvent(QPaintEvent *event){
+    // qDebug()<<"View Paint Event.";
     QGraphicsView::paintEvent(event);
     //开始绘制，以当前窗口作为绘制设备
+    // QPainter painter(this->viewport());
     QPainter painter(this->viewport());
+    // 绘制选区
     if(this->scene()->items().isEmpty()){
-        //qDebug()<<"is empty";
+        // qDebug()<<"items is empty";
         //painter.setPen(QPen(QColor(0, 180, 255,128), 2));
         // 创建一个QPen对象并设置颜色为浅黑色
-         QPen pen(Qt::darkGray);
+        QPen pen(Qt::darkGray);
         painter.setPen(pen);
-        painter.drawText(event->rect(), Qt::AlignCenter, "拖放图片到此或【Ctr+V】粘贴图片");
+        painter.drawText(event->rect(), Qt::AlignCenter, "拖放或【Ctr+V】粘贴图片");
     }
-    //qDebug()<<"painting w="<<this->width()<<", h:"<<this->height();
+
+    // qDebug()<<"painting w="<<this->width()<<", h:"<<this->height();
+    // qDebug()<<"currentMouseState:"<<currentMouseState;
     if(currentMouseState==MouseState::Init || currentMouseState == MouseState::Refresh || this->scene()->items().isEmpty()){
+        // qDebug()<<"paintEvent return.";
+        painter.end();
         return;
     }
 
-    QRect selectedRect(startPoint, endPoint);
+    QPointF topLeft = this->mapFromScene(scenePosStart);
+    QPointF bottomRight = this->mapFromScene(scenePosEnd);
+    QRectF sceneRect(topLeft, bottomRight);
+    // 获取矩形边界和视口部分的交集，以确保获取整个图像区域
+    QRectF selectedRect = sceneRect.intersected(this->viewport()->rect());
+    //QRect selectedRect(startPoint, endPoint);
     //qDebug()<<"selected area  w:"<<selectedRect.width()<<", h:"<<selectedRect.height();
     if(selectedRect.height()<=1 || selectedRect.width()<= 1){
         return;
@@ -154,18 +171,29 @@ void CustomGraphicsView::paintEvent(QPaintEvent *event){
     // 设置合成模式为叠加模式
     painter.setCompositionMode(QPainter::CompositionMode_Overlay);
     // 色填充整个目标图像
+
+    // QRectF sceneRect = this->sceneRect();
+    // painter.fillRect(selectedRect, overlayColor);
+    // QRectF sceneRect = selectionRect.boundingRect();
+
+    // this->mapToScene(selectionRect).boundingRect();
+    // 矩形区域，填充颜色，叠加模式
     painter.fillRect(selectedRect, overlayColor);
-        //设置合成模式为覆盖模式
+
+    // 添加设置合成模式为覆盖模式
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-    // 绘制选区边框
-    painter.setPen(QPen(QColor(0, 0, 255), 1));
+    // 矩形边框线绘制
+    // QPen(QColor(0, 0, 255), 1)
+    painter.setPen( QPen(QColor(0, 180, 255), 1.5));
     //给选中的图片画上蓝色边框
+    // painter.drawRect(selectedRect);
     painter.drawRect(selectedRect);
+
 
 }
 
 void CustomGraphicsView::dragEnterEvent(QDragEnterEvent *event) {
-    //qDebug()<<"dragEnterEvent...";
+    // qDebug()<<"dragEnterEvent...";
     if (event->mimeData()->hasUrls()) {
             // 接受拖放操作
             event->acceptProposedAction();
@@ -176,6 +204,7 @@ void CustomGraphicsView::dragEnterEvent(QDragEnterEvent *event) {
 
 }
 void CustomGraphicsView::dragMoveEvent(QDragMoveEvent *event) {
+    // qDebug()<<"dragMoveEvent...";
     event->accept();
 }
 
@@ -194,13 +223,17 @@ void CustomGraphicsView::dropEvent(QDropEvent *event) {
             QPixmap pixmap(imagePath);
 
             if (!pixmap.isNull()) {
-                if(!this->scene()->items().isEmpty()){
-                    this->scene()->removeItem(this->scene()->items().first());
-                    this->resetMouseState();
-                }
-                QGraphicsPixmapItem *item = new QGraphicsPixmapItem(pixmap);
+                // if(!this->scene()->items().isEmpty()){
+                //     this->scene()->removeItem(this->scene()->items().first());
+                //     // this->resetMouseState();
+                // }
+                // bakPixmap = pixmap;
+                // QGraphicsPixmapItem *item = new QGraphicsPixmapItem(pixmap);
                 this->setProperty("fileName",fileInfo.fileName());
-                this->scene()->addItem(item);
+                // this->scene()->addItem(item);
+                QImage image = pixmap.toImage();
+                this->setSrcImage(image);
+                this->updatePixmap(pixmap);
                 emit signalGraphicsPixmapItemAdded();
                 qDebug()<<"开始识别拖放所得的图片.";
             }
@@ -223,6 +256,8 @@ void CustomGraphicsView::resizeEvent(QResizeEvent *event){
 }
 void CustomGraphicsView::setSrcImage(QImage &image){
     this->srcImage = image;
+    this->bakPixmap = QPixmap();
+    // this->isDrawBoxes = false;
 }
 
 
@@ -360,8 +395,10 @@ void CustomGraphicsView::updatePixmap(QPixmap &pixmap){
         QGraphicsItem *oldImage = this->items().first();
         this->imageScene->removeItem(oldImage);
         delete oldImage;
-        this->resetMouseState();
     }
+    this->resetMouseState();
+    // this->srcImage = pixmap.toImage();
+    // this->bakPixmap = pixmap;
     imageScene->addItem(item);
     QRectF rect = pixmap.rect().toRectF();
     //重新调整大小
@@ -375,5 +412,52 @@ void CustomGraphicsView::updatePixmap(QPixmap &pixmap){
     // 将项目居中显示
     // item->setPos((scene->width() - item->boundingRect().width()) / 2,
     //              (scene->height() - item->boundingRect().height()) / 2);
+}
+
+void CustomGraphicsView::receiveOcrRegionSelected(QVector<QVector<QPointF>> *boxes){
+    qDebug()<<"更新被识别区域.";
+    this->boxes = boxes;
+    isDrawBoxes = true;
+    QPixmap currPixmap = this->getCurrPixmap();
+    bakPixmap = currPixmap;
+    QPainter painter(&currPixmap);
+    if(isDrawBoxes){
+        // QColor lightBlueColor(173, 216, 230);
+        QPointF topLeftPoint = selectionRect.topLeft();
+        painter.setPen(QPen(QColor(0, 180, 255), 1.2));
+        // painter.setPen(QPen(QColor(0, 0, 255), 1));
+            // (QPen(QPen(QColor(0, 0, 255), 1)));
+        // qDebug()<<"boxes.size:"<<boxes->size();
+
+        // 释放每个一维向量的内存
+        for (int i = 0; i < boxes->size(); ++i) {
+            QVector<QPointF>& regions = (*boxes)[i];
+            for(int k=0;k<regions.size();k++){
+                regions[k] += topLeftPoint;
+            }
+            painter.drawPolygon(regions,Qt::OddEvenFill);
+            regions.clear(); // 清空一维向量中的元素
+        }
+        // 清空二维向量数组
+        boxes->clear();
+        // 释放二维向量数组本身的内存
+        delete boxes;
+        // for(QVector<QPointF> regions:*boxes){
+        //     for(int k=0;k<regions.size();k++){
+        //         regions[k] += topLeftPoint;
+        //     }
+        //     painter.drawPolygon(regions,Qt::OddEvenFill);
+        //     //qDebug()<<"pllygon..";
+        // }
+        // qDebug()<<"选区绘制完成.";
+        painter.end();
+        this->updatePixmap(currPixmap);
+        // ImageTool::showImage(currPixmap.toImage(),"绘制结果");
+        // isDrawBoxes = false;
+    }
+    // imageScene->update();
+}
+void CustomGraphicsView::setImageMode(int value){
+    imageMode = value;
 }
 

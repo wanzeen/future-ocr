@@ -17,5 +17,8 @@ void GlobalSignals::sendSignalEvent(int eventType){
 void GlobalSignals::sendMessageResult(QString &content,int code){
     emit signalMessageResult(content,code);
 }
+void GlobalSignals::sendOcrRegionSelected(QVector<QVector<QPointF>> *boxes){
+    emit signalOcrRegionSelected(boxes);
+}
 
 

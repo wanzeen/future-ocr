@@ -22,12 +22,8 @@ public:
 class ImageTool {
 public:
     static void showImage(QImage image,QString title);
-    static QImage matToQImage(cv::Mat mat);
-    static PIX* matToPix(cv::Mat &imgGray);
+    // 图片格式转换： QImage 转为 PIX
     static PIX* qImageToPix(QImage &qImage);
-    static QImage toGrayBinaryImage(QImage &qImage);
-    static cv::Mat pixToMat(PIX* pix);
-
 
 };
 

@@ -37,6 +37,7 @@
 #include <QQueue>
 #include <QAtomicInt>
 #include <QToolBar>
+#include <QSplitter>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -55,7 +56,11 @@ class MainWindow : public QMainWindow
         int copyTextAfterAutoMiniWindow = 0;
         // 启用图像增强
         int enableImageEnhance = 0;
-        // int enablePaddleOCR = 1;
+        // OCR类型取值：1使用PaddleOCR；2 Tesseract
+        int ocrKind = 1;
+        // 窗口布局取值：1使用水平布局；2使用垂直布局
+        int windowLayoutType = 1;
+
     };
 
 public slots:
@@ -76,20 +81,23 @@ public slots:
     // 图像状态改变
     void receivePixmapChangedDescription(QString description);
 
+
 public:
     MainWindow(QWidget *parent = nullptr);
+    // 释放资源
     ~MainWindow();
     // 工具栏初始化
-    void initMenuTool();
+    void initMenuTool(QToolBar &customToolBar);
     // 图片显示区初始化
-    void initImageView();
+    void initImageView(CustomGraphicsView &customImageView);
     // 文本显示区初始化
-    void initTextView();
+    void initTextEdit(QPlainTextEdit &customEdit);
+    void initTextOperateButtons(QHBoxLayout &customTextOperateLayout);
     // 全局键盘事件
     void initGlobalKeyEvent();
     // 设置加载
     void loadPreferenceInfo();
-    // 设置选择
+    // 设置按钮事件
     void onPreferenceClicked();
 
     QString getConfigPath();
@@ -97,6 +105,8 @@ public:
     QString ocrTextFormat(QString content);
 
     // ********** 事件处理函数 **********
+    // 图像模式切换
+    void onImageModeClicked();
     // 打开图片事件
     void onOpenButtonClicked();
     // 保存图片
@@ -128,58 +138,127 @@ public:
     // 粘贴图片
     void onPasteImageClicked();
     // 保存偏好设置
-    bool savePreferenceSetting(); 
+    void savePreferenceSetting();
+    void initLabel(QLabel &label){
+        QFont font;
+        //font.setItalic(true);
+        font.setPointSize(12);
+        QPalette palette = label.palette();
+        // 设置前景色为浅黑色（RGB: 86, 86, 86）
+        palette.setColor(QPalette::WindowText, QColor(86, 86, 86));
+        label.setPalette(palette);
+        label.setFont(font);
+        label.setWordWrap(true);
+    }
+    void onButtonClicked(int id)
+    {
+        tempPreferenceInfo.ocrKind = id;
+        qDebug() << "Button" << id << "clicked";
+    }
+    void onWindowLayoutButtonClicked(int id){
+        tempPreferenceInfo.windowLayoutType = id;
+        qDebug() << "window layout Button" << id << "clicked";
+    }
+    void initTextNote(QLabel &customNoteLabel);
+
 protected:
-    QSize getSize();
+    QSize getMinImageViewSize();
+    QSize getMinTextEditSize();
     void setPixmap(QPixmap &pixmap);
+
+    // void dragMoveEvent(QDragMoveEvent *event) override{
+    //     qDebug()<<"main dragMoveEvent...";
+    // }
+    // void dragEnterEvent(QDragEnterEvent *event) override
+    // {
+    //     qDebug()<<"main dragEnterEvent...";
+    //     event->acceptProposedAction();
+    // }
+
+    // void dropEvent(QDropEvent *event) override
+    // {
+    //     qDebug()<<"main dropEvent...";
+    //     const QMimeData *mimeData = event->mimeData();
+    //     if (mimeData->hasUrls())
+    //     {
+    //         QList<QUrl> urlList = mimeData->urls();
+    //         for (const QUrl &url : urlList)
+    //         {
+    //             qDebug() << "Dropped file path:" << url.toLocalFile();
+    //         }
+    //     }
+
+    //     event->acceptProposedAction();
+    // }
+
 private:
     // 设置信息
     PreferenceInfo preferenceInfo;
     // 编辑信息
     PreferenceInfo tempPreferenceInfo;
-    QToolBar *toolBar;
+    QToolBar toolBar;
     // 菜单栏
+
     // 截屏OCR(Ctr+P)
-    QAction *captureAction;
+    QAction captureAction;
+    // 切换模式：锁定图像
+    QAction imageModeAction;
     // 粘贴图片
-    QAction *pasteImageAction;
+    QAction pasteImageAction;
     // 识别(Ctr+Enter)
-    QAction *ocrAction;
+    QAction ocrAction;
     // 保存(Ctr+S)
-    QAction *saveAction;
+    QAction saveAction;
     // 打开(Ctr+O)
-    QAction *openAction;
+    QAction openAction;
     // 复制图片(Ctr+Shift+C)
-    QAction *copyImageAction;
+    QAction copyImageAction;
     // 偏好设置
-    QAction *preferenceAction;
+    QAction preferenceAction;
     // 关于
-    QAction *aboutAction;
+    QAction aboutAction;
 
     // 复制文本
-    QPushButton *copyTextBtn;
+    QPushButton copyTextBtn;
     // 粘贴并识别图片
-    QPushButton *captureBtn;
+    QPushButton captureBtn;
 
     // 创建一个QAtomicInt对象
     int taskCount = 0;
-    ScreenCapture *captureScreen;
-    QPixmap windowPixmap;
-    QPainter painter;
-    QLabel *noteLabel;
+    ScreenCapture captureScreen;
+    // QPixmap windowPixmap;
+    // QPainter painter;
+    // 提示标签
+    QLabel noteLabel;
     // 创建一个线程池
-    QThreadPool* threadPool;
+    QThreadPool threadPool;
     //文本显示区
-    QPlainTextEdit *edit;
+    QPlainTextEdit edit;
     // 图片显示区
-    CustomGraphicsView *imageView ;
-    // 全局布局
-    QVBoxLayout *centralLayout;
+    CustomGraphicsView imageView ;
+    // 全局垂直布局
+    QVBoxLayout centralLayout;
+    // 图片视图、文本框视图布局水平
+    QHBoxLayout imageTextViewLayout;
+
+    // QVBoxLayout centralLayout;
     // 截屏
-    ScreenCapture *screen;
+    ScreenCapture screen;
+    // 当前组件
+    QWidget centralWidget;
+    // 分裂条
+    QSplitter splitter;
+
+    // QWidget editWidget;
+    // 文本显示区
+    QVBoxLayout textViewLayout;
+    // 文本下方按钮区
+    QHBoxLayout textOperateLayout;
+
     // 线程池最大线程数量
     const int MAX_THREAD_COUNT = 5;
-    Ui::MainWindow *ui;
+    // Ui::MainWindow *ui;
+    // PythonHandler *pythonHandler;
 
 };
 
